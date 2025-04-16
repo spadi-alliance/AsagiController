@@ -1,4 +1,5 @@
 #include <iostream>
+#include <fstream>
 #include <iomanip>
 #include <ios>
 #include <cstdio>
@@ -9,7 +10,7 @@
 #include "UDPRBCP.hh"
 #include "rbcp.hh"
 
-enum kArgIndex{kBin, kIp};
+enum kArgIndex{kBin, kIp, kPfile};
 
 using namespace HUL;
 
@@ -21,9 +22,10 @@ uint32_t GetAddrOffset(int32_t channel_num)
 
 int main(int argc, char* argv[])
 {
-  if(1 == argc){
+  if(1 == argc || 2 == argc){
     std::cout << "Usage\n";
-    std::cout << "Please write how to use here" << std::endl;
+    std::cout << "set_asic_register <IP address> <Parameter File>" << std::endl;
+    //std::cout << "Please write how to use here" << std::endl;
     return 0;
   }// usage
   
@@ -33,15 +35,25 @@ int main(int argc, char* argv[])
   RBCP::UDPRBCP udp_rbcp(board_ip, RBCP::gUdpPort, RBCP::UDPRBCP::kNoDisp);
   HUL::FPGAModule fpga_module(udp_rbcp);
 
+  std::ifstream infile(argv[kPfile]);
+  std::string reg_val;
 
-  uint8_t asic_registers[] =
-    {
-      0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8, 0x9 // Registers for ASIC
-    };
+  std::vector<int> registers;
+  while(std::getline(infile, reg_val)){
+    std::cout << "#In:" << reg_val <<std::endl;
+    registers.push_back(std::stoi(reg_val, nullptr, 16));
+  }
+
+  int reg_size = registers.size();
+  uint8_t asic_registers[reg_size];
+  for(int i=0; i<reg_size; ++i){
+    asic_registers[i] = registers[i];
+    std::cout << std::dec << (i-2) <<":#Out:" << std::hex << unsigned(asic_registers[i]) <<std::endl;
+  }
   uint32_t register_size = sizeof(asic_registers)/sizeof(uint8_t);
-
   std::cout << "#D: Register size: " << register_size << std::endl;
 
+  fpga_module.WriteModule(SctDriver::SCTDU::kAddrStateCom, 0x1F, 4);
 
   // Example to send register from all DTL channel on Slot-U
   const int32_t kNumAsic = 2;
@@ -82,6 +94,7 @@ int main(int argc, char* argv[])
     
   }
 
+  fpga_module.WriteModule(SctDriver::SCTDU::kAddrStateCom, 0x0, 4);
   std::cout << "#D: Everything done" << std::endl;
   
   return 0;
